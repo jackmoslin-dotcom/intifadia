@@ -1,0 +1,16 @@
+
+> libya-youth-awareness@0.1.0 test
+> vitest run
+
+
+ RUN  v5.0.5 C:/Users/ahmed/OneDrive/Documents/ChatGPT/intfadia
+
+
+ Test Files  4 passed (4)
+      Tests  94 passed (94)
+   Start at  00:33:21
+   Duration  3.02s (tests 74%, import 22%, transform 4%, worker 1%)
+
+    Isolate  4 workers spawned · ~134ms startup each (spawn + environment, per file)
+             at least ~402ms faster with isolate: false — reuses workers across files instead of one per file
+
