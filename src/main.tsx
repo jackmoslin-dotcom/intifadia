@@ -96,6 +96,7 @@ function App() {
     <>
       <a className="skip" href="#main">
         انتقل إلى المحتوى
+      </a>
       <header>
         <a className="brand" href="/">
           <span className="emblem">☾★</span>
