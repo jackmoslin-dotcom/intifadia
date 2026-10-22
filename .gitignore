@@ -7,6 +7,9 @@ test-results/
 playwright-report/
 *.log
 .npm-cache/
+.vercel/
+# Artifact from the retired api/index.ts build; never deploy a second function.
+api/index.js
 
 node_modules/
 dist/
