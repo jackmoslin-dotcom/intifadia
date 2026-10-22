@@ -96,10 +96,6 @@ function App() {
     <>
       <a className="skip" href="#main">
         انتقل إلى المحتوى
-      </a>
-      <div className="staging">
-        نسخة مراجعة خاصة · بيانات اصطناعية فقط · غير مفتوحة للمشاركة العامة
-      </div>
       <header>
         <a className="brand" href="/">
           <span className="emblem">☾★</span>
