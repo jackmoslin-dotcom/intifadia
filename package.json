@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx server/index.ts",
     "build": "tsc --noEmit && vite build && npm run build:api"
-    "build:api": "esbuild api/index.ts --bundle --platform=node --target=node22 --format=esm --packages=external --outfile=api/index.mjs"
+    "build:api": "esbuild api/index.ts --bundle --platform=node --target=node22 --format=esm --packages=external --outfile=api/index.js",
     "start": "tsx server/index.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
@@ -19,7 +19,7 @@
     "helmet": "^8.1.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "zod": "^4.1.0"
+    "zod": "^4.1.0",
     "esbuild": "^0.25.0"
   },
   "devDependencies": {
