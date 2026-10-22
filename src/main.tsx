@@ -330,20 +330,66 @@ function Survey({ config }: { config?: Config }) {
       setBusy(false);
     }
   };
-  if (done)
+  if (done) {
     return (
-      <section className="page narrow">
-        <div className="success-mark">✓</div>
-        <Title eyebrow="تم الحفظ" title="شكراً لمشاركتك">
-          <p>
-            حُفظت إجاباتك بنجاح. النصوص المكتوبة خاصة حتى مراجعتها وإزالة
-            التفاصيل التي قد تكشف الهوية.
+      <section className="thankyou-page" dir="rtl">
+        <div className="thankyou-glow thankyou-glow-one" />
+        <div className="thankyou-glow thankyou-glow-two" />
+
+        <div className="thankyou-content" role="status">
+          <div className="thankyou-symbol">
+            <span>✓</span>
+          </div>
+
+          <div className="thankyou-kicker">
+            INTIFADIA · انتفاضة الوعي الشبابي
+          </div>
+
+          <h1>
+            شكرًا لأنك
+            <span> شاركت بصوتك.</span>
+          </h1>
+
+          <p className="thankyou-lead">
+            تم استلام إجاباتك بنجاح.
           </p>
-        </Title>
-        <a href="/results" className="button green">
-          عرض النتائج المجمعة ←
-        </a>
+
+          <p className="thankyou-description">
+            كل رأي يحمل تجربة، وكل تجربة تستحق أن تُسمع.
+            بمشاركتك اليوم، ساهمت في بناء صورة أوضح
+            عن واقع الليبيين وتطلعاتهم نحو غدٍ أفضل.
+          </p>
+
+          <div className="thankyou-divider">
+            <span>✦</span>
+          </div>
+
+          <div className="thankyou-quote">
+            «التغيير يبدأ بالوعي، والوعي يبدأ بصوتك.»
+          </div>
+
+          <div className="thankyou-actions">
+            <a href="/" className="thankyou-primary">
+              العودة إلى الرئيسية <span>←</span>
+            </a>
+            <a href="/results" className="thankyou-secondary">
+              استكشف النتائج <span>↗</span>
+            </a>
+          </div>
+
+          <p className="thankyou-privacy">
+            إجاباتك الفردية ليست معروضة للعامة.
+            تُنشر النتائج المجمّعة فقط وفق ضوابط الخصوصية.
+          </p>
+
+          <div className="thankyou-bottom">
+            <span>🇱🇾</span>
+            <span>من أجل ليبيا تستمع إلى أبنائها</span>
+          </div>
+        </div>
       </section>
+    );
+  }
     );
   return (
     <section className="page survey-page">
