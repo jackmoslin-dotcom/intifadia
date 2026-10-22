@@ -272,7 +272,7 @@ function Bot({
     let widget: string | undefined;
     let stopped = false;
     const render = () => {
-      if (!stopped && ref.current && (window as any).turnstile)
+      if (!stopped && ref.current && typeof (window as any).turnstile?.render === "function")
         widget = (window as any).turnstile.render(ref.current, {
           sitekey: siteKey,
           action: "survey",
@@ -338,7 +338,7 @@ function Survey({ config }: { config?: Config }) {
         botToken: token,
       });
       setDone(true);
-      setAnswers({});
+      
     } catch (e) {
       setError((e as Error).message);
       setToken("");
