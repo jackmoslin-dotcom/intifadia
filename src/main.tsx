@@ -407,7 +407,6 @@ function Survey({ config }: { config?: Config }) {
       </section>
     );
   }
-    );
   return (
     <section className="page survey-page">
       <Title eyebrow="مساحة للاستماع" title="رأيك يهمّنا">
