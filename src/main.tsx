@@ -27,8 +27,25 @@ async function api(path: string, data?: unknown, token?: string) {
     },
     ...(data === undefined ? {} : { body: JSON.stringify(data) }),
   });
-  const body = await r.json();
-  if (!r.ok) throw Error(body.error || "تعذر تنفيذ الطلب");
+  const raw = await r.text();
+  let body: any;
+
+  try {
+    body = raw ? JSON.parse(raw) : {};
+  } catch {
+    throw new Error(
+      `تعذر قراءة استجابة الخادم (${r.status}). حاول مجددًا.`
+    );
+  }
+
+  if (!r.ok) {
+    throw new Error(
+      typeof body?.error === "string"
+        ? body.error
+        : `تعذر تنفيذ الطلب (${r.status})`
+    );
+  }
+
   return body;
 }
 const links = [
