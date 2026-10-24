@@ -40,6 +40,9 @@ beforeAll(async () => {
   );
   await db.exec(readFileSync("supabase/migrations/001_core.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/002_questions.sql", "utf8"));
+  await db.exec(
+    readFileSync("supabase/migrations/003_civic_update.sql", "utf8"),
+  );
   for (const [role, id] of Object.entries(owners).filter(
     ([r]) => r !== "nobody",
   ))
@@ -51,10 +54,157 @@ beforeAll(async () => {
 afterAll(() => db.close());
 beforeEach(async () => {
   await db.exec(
-    "reset role; truncate responses,demands,rate_buckets,audit_log restart identity cascade; update settings set retention_days=180,suppression_threshold=5;",
+    "reset role; truncate responses,demands,rate_buckets,audit_log,participation_counts restart identity cascade; update settings set retention_days=180,suppression_threshold=5;",
   );
 });
 describe("PostgreSQL migrations and authorization", () => {
+  it("preserves old submissions, settings and roles when the additive migration is repeated", async () => {
+    const id = await submit({
+      city: "v1",
+      comment: "existing synthetic record",
+    });
+    await db.exec("reset role");
+    const before = await db.query("select * from responses where id=$1", [id]);
+    await db.exec(
+      "update settings set retention_days=120; update event_announcement set status='postponed';",
+    );
+    await db.exec(
+      readFileSync("supabase/migrations/003_civic_update.sql", "utf8"),
+    );
+    await db.exec(
+      readFileSync("supabase/migrations/003_civic_update.sql", "utf8"),
+    );
+    expect(
+      (await db.query("select * from responses where id=$1", [id])).rows,
+    ).toEqual(before.rows);
+    expect(
+      (await db.query<any>("select retention_days from settings")).rows[0]
+        .retention_days,
+    ).toBe(120);
+    expect(
+      (await db.query<any>("select status from event_announcement")).rows[0]
+        .status,
+    ).toBe("postponed");
+    expect(
+      (await db.query<any>("select count(*) n from admin_roles")).rows[0].n,
+    ).toBe(3);
+    expect(
+      (await db.query<any>("select count(*) n from demands")).rows[0].n,
+    ).toBe(1);
+  });
+  it("stores Q36 only as anonymous counters, counts retries once and keeps old requests valid", async () => {
+    const key = "demonstration_intent_2026_10_28";
+    const id = crypto.randomUUID();
+    await submit({ city: "v1", [key]: "v1" }, id);
+    await submit({ city: "v1", [key]: "v1" }, id);
+    await submit({ city: "v1", [key]: "v2" }, id); // Same retry never changes intention.
+    await submit({ city: "v2" });
+    await db.exec("reset role");
+    expect(
+      (await db.query<any>("select answers from responses where id=$1", [id]))
+        .rows[0].answers,
+    ).toEqual({ city: "v1" });
+    expect(
+      (
+        await db.query<any>(
+          "select yes_count,no_count from participation_counts",
+        )
+      ).rows,
+    ).toEqual([{ yes_count: 1, no_count: 0 }]);
+    await expect(
+      db.query("insert into responses(id,answers) values($1,$2)", [
+        crypto.randomUUID(),
+        { [key]: "v1" },
+      ]),
+    ).rejects.toThrow("intent must be aggregated");
+    await identity("anon");
+    await expect(
+      db.query("select * from participation_counts"),
+    ).rejects.toThrow();
+    await expect(rpc("statistics_snapshot", [true])).rejects.toThrow();
+  });
+  it("uses Q36 answers as denominator, suppresses small cells, exposes owner aggregates below five", async () => {
+    const key = "demonstration_intent_2026_10_28";
+    for (let i = 0; i < 5; i++) await submit({ [key]: "v1" });
+    await submit({ [key]: "v2" });
+    await submit({});
+    await submit({});
+    await identity("anon");
+    expect((await rpc("public_statistics")).demonstration).toBeNull();
+    await admin();
+    const privateStats = await rpc("admin_action", ["analytics", {}]);
+    expect(privateStats).toMatchObject({
+      total: 8,
+      private: true,
+      demonstration: {
+        answered: 6,
+        yes: 5,
+        no: 1,
+        yesPercent: 83.3,
+        noPercent: 16.7,
+      },
+    });
+    for (let i = 0; i < 4; i++) await submit({ [key]: "v2" });
+    await identity("anon");
+    expect((await rpc("public_statistics")).demonstration).toEqual({
+      answered: 10,
+      yes: 5,
+      no: 5,
+      yesPercent: 50,
+      noPercent: 50,
+    });
+  });
+  it("returns null percentages for unanswered Q36 rather than NaN or fabricated zero turnout", async () => {
+    await submit({});
+    await admin();
+    expect(
+      (await rpc("admin_action", ["analytics", {}])).demonstration,
+    ).toEqual({
+      answered: 0,
+      yes: 0,
+      no: 0,
+      yesPercent: null,
+      noPercent: null,
+    });
+  });
+  it("updates event settings only for an owner at aal2 and audits changes", async () => {
+    const event = {
+      status: "announced",
+      slogan: "شعار اختباري",
+      note: "نص اختباري",
+    };
+    await admin("analyst");
+    await expect(rpc("admin_action", ["save_event", event])).rejects.toThrow();
+    await admin("moderator");
+    await expect(rpc("admin_action", ["event_settings", {}])).rejects.toThrow();
+    await admin("owner", "aal1");
+    await expect(rpc("admin_action", ["save_event", event])).rejects.toThrow();
+    await admin();
+    await expect(
+      rpc("admin_action", [
+        "save_event",
+        { ...event, status: "government_authorized" },
+      ]),
+    ).rejects.toThrow();
+    await rpc("admin_action", ["save_event", event]);
+    expect((await rpc("admin_action", ["audit", {}]))[0].action).toBe(
+      "save_event",
+    );
+    await identity("anon");
+    expect(await rpc("public_event")).toMatchObject(event);
+  });
+  it("retains fresh counters and deletes expired day buckets through the authorized retention control", async () => {
+    await db.exec(
+      "insert into participation_counts values(current_date-200,2,1),(current_date,1,1)",
+    );
+    await admin();
+    await rpc("admin_action", [
+      "delete_expired",
+      { confirmation: "DELETE EXPIRED" },
+    ]);
+    const s = await rpc("admin_action", ["analytics", {}]);
+    expect(s.demonstration).toMatchObject({ answered: 2, yes: 1, no: 1 });
+  });
   it("overview returns real role-specific counts", async () => {
     await submit({ demand: "synthetic demand", comment: "synthetic comment" });
     await admin("moderator");
@@ -66,7 +216,7 @@ describe("PostgreSQL migrations and authorization", () => {
     await admin("analyst");
     expect(await rpc("admin_action", ["overview", {}])).toMatchObject({
       role: "analyst",
-      statistics: { total: null },
+      statistics: { total: 1 },
       moderation: null,
     });
   });
@@ -88,7 +238,7 @@ describe("PostgreSQL migrations and authorization", () => {
       );
     }
   });
-  it("all 35 question definitions match source", async () => {
+  it("all 36 question definitions match source", async () => {
     const result = await db.query<{ definition: any }>(
       "select definition from question_definitions order by id",
     );

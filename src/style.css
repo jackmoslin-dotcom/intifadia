@@ -2,6 +2,22 @@
   font-family: Arabic;
   src: local("Tahoma");
 }
+.telegram-link{display:inline-flex;align-items:center;gap:10px;color:#82d4ff;font-weight:bold;min-height:44px;padding:8px 0}
+.telegram-link svg{flex-shrink:0}
+.hero-copy>.telegram-link{display:flex;width:fit-content;margin-bottom:12px}
+.event-news{max-width:1240px;margin:32px auto;padding:30px;display:grid;grid-template-columns:110px 1fr;gap:28px;border:1px solid #34516b;border-radius:14px;background:linear-gradient(110deg,#102537,#0b1927);border-inline-start:4px solid #35c494}
+.event-date{align-self:start;text-align:center;border:1px solid #34516b;border-radius:10px;overflow:hidden}
+.event-date span{display:block;background:#19354a;padding:7px;color:#d9eaf6}
+.event-date strong{display:block;font-size:3rem;line-height:1.7}
+.event-meta{display:flex;flex-wrap:wrap;gap:20px;align-items:baseline;color:#b7cadd;font-size:.85rem}
+.event-news h2{font-size:clamp(1.25rem,3vw,1.8rem);margin-bottom:12px}
+.event-news h3{color:#eef6fc;font-size:1.3rem}
+.event-news p{margin-bottom:12px;max-width:950px}
+.event-news .actions{align-items:center;margin-bottom:0}
+.participation-stats{margin-bottom:25px}
+.owner-help{padding:20px;border:1px solid #34516b;border-radius:10px;margin-bottom:25px}
+select{font:inherit;background:#0c1d2f;color:#eef2f5;border:1px solid #58718b;border-radius:7px;padding:12px;width:100%;margin:8px 0 20px}
+@media(max-width:640px){.event-news{margin:18px;padding:20px;gap:16px;grid-template-columns:1fr}.event-date{display:flex;align-items:center;justify-content:center;gap:12px}.event-date strong{font-size:1.8rem;line-height:1.6}.event-date span{background:transparent}.event-news .actions{gap:4px}.event-news h3{font-size:1.1rem}.telegram-link{font-size:.85rem}}
 * {
   box-sizing: border-box;
 }

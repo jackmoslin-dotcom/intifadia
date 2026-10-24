@@ -12,9 +12,23 @@ export function csvCell(value: unknown) {
   );
 }
 export function aggregateCSV(data: any) {
-  const rows: unknown[][] = [["السؤال", "الإجابة", "العدد"]];
+  const rows: unknown[][] = [
+    ["السؤال", "الإجابة", "العدد", "إجابات السؤال", "النسبة المئوية"],
+  ];
   for (const [id, bars] of Object.entries(data.distributions ?? {}))
-    for (const b of bars as any[]) rows.push([id, b.label, b.count]);
+    for (const b of bars as any[])
+      rows.push([id, b.label, b.count, b.answered ?? "", b.percent ?? ""]);
+  for (const [id, t] of Object.entries(data.textCompletion ?? {}) as [
+    string,
+    any,
+  ][])
+    rows.push([
+      id,
+      "أجاب بنص (دون محتواه)",
+      t.answered,
+      data.total,
+      t.percent ?? "",
+    ]);
   return "\uFEFF" + rows.map((r) => r.map(csvCell).join(",")).join("\r\n");
 }
 export async function verifyBot(

@@ -9,6 +9,13 @@ import {
   answerSchema,
 } from "./survey";
 import "./style.css";
+import {
+  defaultEvent,
+  EventAnnouncement,
+  TelegramLink,
+} from "./event";
+import { ParticipationStats } from "./ParticipationStats";
+import { EventSettings } from "./EventSettings";
 type Config = {
   configured: boolean;
   submissionReady: boolean;
@@ -33,16 +40,14 @@ async function api(path: string, data?: unknown, token?: string) {
   try {
     body = raw ? JSON.parse(raw) : {};
   } catch {
-    throw new Error(
-      `تعذر قراءة استجابة الخادم (${r.status}). حاول مجددًا.`
-    );
+    throw new Error(`تعذر قراءة استجابة الخادم (${r.status}). حاول مجددًا.`);
   }
 
   if (!r.ok) {
     throw new Error(
       typeof body?.error === "string"
         ? body.error
-        : `تعذر تنفيذ الطلب (${r.status})`
+        : `تعذر تنفيذ الطلب (${r.status})`,
     );
   }
 
@@ -60,11 +65,11 @@ function App() {
   const [config, setConfig] = useState<Config>();
   useEffect(() => {
     api("config").then((c) => {
-      setConfig(c);
       if (c.configured)
         auth = createClient(c.supabaseUrl, c.supabaseAnonKey, {
           auth: { persistSession: false, detectSessionInUrl: false },
         });
+      setConfig(c);
     });
     const pop = () => {
       setPath(location.pathname);
@@ -129,7 +134,7 @@ function App() {
         ) : path === "/demands" ? (
           <Demands />
         ) : path.startsWith("/admin") ? (
-          <Admin path={path} />
+          <Admin path={path} ready={Boolean(config?.configured)} />
         ) : (
           <Info path={path} contactEmail={config?.contactEmail} />
         )}
@@ -139,6 +144,7 @@ function App() {
           <span className="emblem">☾★</span>انتفاضة الوعي الشبابي
         </div>
         <p>وعي · مشاركة · مطالب حقيقية · تغيير إيجابي</p>
+        <TelegramLink />
         <nav aria-label="روابط إضافية">
           {[
             ["/goals", "أهدافنا"],
@@ -160,8 +166,16 @@ function App() {
   );
 }
 function Home() {
+  const { data: event, error: eventError } = useRemote("event");
   return (
     <>
+      <EventAnnouncement event={event || defaultEvent} />
+      {eventError && (
+        <p className="notice">
+          تعذر تحديث حالة الإعلان الآن. المعلومات المعروضة هي الإعلان الأولي؛
+          راجع القناة الرسمية لمعرفة آخر المستجدات.
+        </p>
+      )}
       <section className="hero">
         <div className="hero-copy">
           <span className="eyebrow">من أجل اقتصاد يستمع إلى الناس</span>
@@ -172,8 +186,9 @@ function Home() {
             <i>.</i>
           </h1>
           <p>
-            استبيان اقتصادي مستقل لفهم آراء المواطنين الليبيين حول ظروف المعيشة
-            والخدمات الأساسية وأولويات الشباب.
+            مبادرة شبابية مدنية مستقلة لجمع الآراء حول الظروف الاقتصادية
+            والاجتماعية والخدمات الأساسية والمطالب المدنية والتجمع السلمي
+            المعلن.
           </p>
           <div className="trust">
             <span>◉ مشاركة اختيارية</span>
@@ -188,7 +203,8 @@ function Home() {
               استكشف النتائج ▥
             </a>
           </div>
-          <small>٣٥ سؤالاً اختيارياً · لا نطلب الاسم أو رقم الهاتف</small>
+          <TelegramLink />
+          <small>٣٦ سؤالاً اختيارياً · لا نطلب الاسم أو رقم الهاتف</small>
         </div>
         <div className="hero-caption">
           ليبيا تستحق أن نسمع بعضنا.
@@ -216,7 +232,12 @@ function Home() {
             <a href="/survey" className="topic" key={s}>
               <b>0{i + 1}</b>
               <h3>{s}</h3>
-              <span>{i === 5 ? "٥" : "٦"} أسئلة اختيارية ↗</span>
+              <span>
+                {questions
+                  .filter((q) => q.section === i)
+                  .length.toLocaleString("ar-LY")}{" "}
+                أسئلة اختيارية ↗
+              </span>
             </a>
           ))}
         </div>
@@ -269,7 +290,11 @@ function Bot({
     let widget: string | undefined;
     let stopped = false;
     const render = () => {
-      if (!stopped && ref.current && typeof (window as any).turnstile?.render === "function")
+      if (
+        !stopped &&
+        ref.current &&
+        typeof (window as any).turnstile?.render === "function"
+      )
         widget = (window as any).turnstile.render(ref.current, {
           sitekey: siteKey,
           action: "survey",
@@ -335,7 +360,6 @@ function Survey({ config }: { config?: Config }) {
         botToken: token,
       });
       setDone(true);
-      
     } catch (e) {
       setError((e as Error).message);
       setToken("");
@@ -364,14 +388,11 @@ function Survey({ config }: { config?: Config }) {
             <span> شاركت بصوتك.</span>
           </h1>
 
-          <p className="thankyou-lead">
-            تم استلام إجاباتك بنجاح.
-          </p>
+          <p className="thankyou-lead">تم استلام إجاباتك بنجاح.</p>
 
           <p className="thankyou-description">
-            كل رأي يحمل تجربة، وكل تجربة تستحق أن تُسمع.
-            بمشاركتك اليوم، ساهمت في بناء صورة أوضح
-            عن واقع الليبيين وتطلعاتهم نحو غدٍ أفضل.
+            كل رأي يحمل تجربة، وكل تجربة تستحق أن تُسمع. بمشاركتك اليوم، ساهمت
+            في بناء صورة أوضح عن واقع الليبيين وتطلعاتهم نحو غدٍ أفضل.
           </p>
 
           <div className="thankyou-divider">
@@ -392,8 +413,8 @@ function Survey({ config }: { config?: Config }) {
           </div>
 
           <p className="thankyou-privacy">
-            إجاباتك الفردية ليست معروضة للعامة.
-            تُنشر النتائج المجمّعة فقط وفق ضوابط الخصوصية.
+            إجاباتك الفردية ليست معروضة للعامة. تُنشر النتائج المجمّعة فقط وفق
+            ضوابط الخصوصية.
           </p>
 
           <div className="thankyou-bottom">
@@ -434,7 +455,7 @@ function Survey({ config }: { config?: Config }) {
         <div className="survey-card">
           <div className="progress-top">
             <span>الخطوة {step + 1} من ٧</span>
-            <span>{Object.keys(answers).length} من ٣٥ سؤالاً أُجيب عنها</span>
+            <span>{Object.keys(answers).length} من ٣٦ سؤالاً أُجيب عنها</span>
           </div>
           <progress max={7} value={step + 1} aria-label="تقدم الاستبيان" />
           <h2 tabIndex={-1}>{step < 6 ? sections[step] : "مراجعة وإرسال"}</h2>
@@ -446,6 +467,12 @@ function Survey({ config }: { config?: Config }) {
                   <legend>
                     {q.label} <small>(اختياري)</small>
                   </legend>
+                  {q.id === "demonstration_intent_2026_10_28" && (
+                    <p>
+                      إجابة اختيارية عن النية فقط، وليست تسجيلاً للحضور. تُحفظ
+                      ضمن عدادات مجمّعة منفصلة دون ربطها بإجاباتك الأخرى.
+                    </p>
+                  )}
                   {q.type === "text" ? (
                     <>
                       <textarea
@@ -551,8 +578,8 @@ function Survey({ config }: { config?: Config }) {
                   onChange={(e) => setConsent(e.target.checked)}
                 />
                 أوافق طوعاً على معالجة هذه الإجابات وفق{" "}
-                <a href="/privacy">سياسة الخصوصية</a>، وأفهم أن هذه نسخة اختبار
-                مخصصة للبيانات الاصطناعية فقط.
+                <a href="/privacy">سياسة الخصوصية</a>، وأفهم أن المشاركة
+                اختيارية ولا تمثل تسجيلاً لحضور أي فعالية.
               </label>
               <Bot
                 siteKey={config?.turnstileSiteKey || ""}
@@ -649,7 +676,11 @@ function Charts({ data }: { data: any }) {
               ? "غير منشور"
               : data.total.toLocaleString("ar-LY")}
           </strong>
-          <small>حد النشر: {data.threshold} مشاركات على الأقل</small>
+          <small>
+            {data.private
+              ? "عرض إداري مخوّل، مستقل عن حد العرض العام"
+              : `حد النشر: ${data.threshold} مشاركات على الأقل`}
+          </small>
         </article>
         <article>
           <span>نشر مسؤول</span>
@@ -657,12 +688,28 @@ function Charts({ data }: { data: any }) {
           <small>لا تُنشر سجلات فردية أو تركيبات ديموغرافية</small>
         </article>
       </div>
+      <ParticipationStats data={data} privateView={Boolean(data.private)} />
+      {data.private && (
+        <p className="notice">
+          تُحفظ الاستبيانات المرسلة بنجاح فقط. لا يخزّن النظام مسودات أو
+          استبيانات غير مكتملة، لذلك لا يتوفر عدد موثوق لها. يمكن تجاوز جميع
+          الأسئلة.
+        </p>
+      )}
       <div className="charts">
         {questions
-          .filter((q) => q.aggregate)
+          .filter(
+            (q) => q.aggregate && q.id !== "demonstration_intent_2026_10_28",
+          )
           .map((q) => {
             const bars = data.distributions[q.id] as
-              { label: string; count: number }[] | undefined;
+              | {
+                  label: string;
+                  count: number;
+                  percent?: number | null;
+                  answered?: number;
+                }[]
+              | undefined;
             const max = Math.max(...(bars || []).map((b) => b.count), 1);
             return (
               <article className="chart" key={q.id}>
@@ -672,7 +719,10 @@ function Charts({ data }: { data: any }) {
                     <div className="bar-row" key={b.label}>
                       <div>
                         <span>{b.label}</span>
-                        <b>{b.count.toLocaleString("ar-LY")}</b>
+                        <b>
+                          {b.count.toLocaleString("ar-LY")}
+                          {b.percent != null ? ` · ${b.percent}٪` : ""}
+                        </b>
                       </div>
                       <div className="bar-track">
                         <span style={{ width: `${(100 * b.count) / max}%` }} />
@@ -689,7 +739,11 @@ function Charts({ data }: { data: any }) {
           })}
         <article className="chart">
           <h3>المشاركات الأسبوعية</h3>
-          <p>الأسابيع المكتملة التي بلغت حد النشر فقط.</p>
+          <p>
+            {data.private
+              ? "تتضمن الفترة الحالية غير المكتملة."
+              : "الأسابيع المكتملة التي بلغت حد النشر فقط."}
+          </p>
           {data.weekly.length ? (
             data.weekly.map((w: any) => (
               <p key={w.week}>
@@ -700,6 +754,23 @@ function Charts({ data }: { data: any }) {
             <p className="empty">لا توجد أسابيع مكتملة قابلة للنشر بعد.</p>
           )}
         </article>
+        {data.private &&
+          questions
+            .filter((q) => q.type === "text")
+            .map((q) => (
+              <article className="chart" key={q.id}>
+                <h3>{q.label}</h3>
+                <p>
+                  أجاب بنص: {data.textCompletion?.[q.id]?.answered ?? 0} ·{" "}
+                  {data.textCompletion?.[q.id]?.percent ?? "—"}٪ من الاستبيانات
+                  المرسلة.
+                </p>
+                <small>
+                  نسبة تقديم إجابة فقط، دون عرض محتواها أو تحويلها إلى تصنيف
+                  سياسي. النصوص متاحة للمراجعين المخولين في قسم المطالب.
+                </small>
+              </article>
+            ))}
       </div>
     </>
   );
@@ -767,7 +838,7 @@ const content: Record<string, { title: string; parts: [string, string][] }> = {
     parts: [
       [
         "مساحة مدنية للاستماع",
-        "انتفاضة الوعي الشبابي مشروع مستقل لفهم التجارب الاقتصادية وأولويات الشباب في ليبيا. يهدف إلى جمع آراء طوعية بلغة محايدة وعرضها بطريقة مفهومة.",
+        "انتفاضة الوعي الشبابي مبادرة شبابية مدنية مستقلة لفهم الظروف الاقتصادية والاجتماعية في ليبيا، والاستماع إلى هموم الناس وتوثيق مطالبهم المدنية بشأن التجمع السلمي المعلن. ليست مبادرة حكومية، والمشاركة فيها طوعية.",
       ],
       [
         "ماذا نفعل؟",
@@ -775,7 +846,7 @@ const content: Record<string, { title: string; parts: [string, string][] }> = {
       ],
       [
         "حدود دورنا",
-        "لسنا جهة حكومية أو جهة لتقديم المساعدات، ولا نضمن تنفيذ المطالب. هوية الجهة المسؤولة وقنوات التواصل المعتمدة يجب توثيقها قبل الإطلاق العام.",
+        "لسنا جهة حكومية أو جهة لتقديم المساعدات، ولا نضمن تنفيذ المطالب. تُنشر مستجدات المبادرة عبر قناة LibyaYouthAwareness الرسمية على تيليجرام. لا يدل إعلان الموعد على ترخيص حكومي.",
       ],
     ],
   },
@@ -796,7 +867,7 @@ const content: Record<string, { title: string; parts: [string, string][] }> = {
       ],
       [
         "المساءلة والشفافية",
-        "توضيح طريقة جمع البيانات وحدودها، وحماية الإجابات الفردية، وإتاحة مراجعة مستقلة قبل دعوة الجمهور.",
+        "توضيح طريقة جمع البيانات وحدودها، وحماية الإجابات الفردية، ومراجعة أمن المعلومات والخصوصية بصورة مستمرة.",
       ],
     ],
   },
@@ -805,7 +876,7 @@ const content: Record<string, { title: string; parts: [string, string][] }> = {
     parts: [
       [
         "التصميم",
-        "يتضمن الاستبيان ٣٥ سؤالاً موزعة على ستة أقسام: معلومات عامة، الرواتب والدخل، تكلفة المعيشة، العمل وفرص الشباب، الخدمات الأساسية، والأولويات والمطالب. كل سؤال اختياري. أسئلة تأخر الراتب والإيجار ومدة البحث عن عمل تظهر فقط عند انطباقها.",
+        "يتضمن الاستبيان ٣٦ سؤالاً موزعة على ستة أقسام: معلومات عامة، الرواتب والدخل، تكلفة المعيشة، العمل وفرص الشباب، الخدمات الأساسية، والأولويات والمطالب. كل سؤال اختياري. أسئلة تأخر الراتب والإيجار ومدة البحث عن عمل تظهر فقط عند انطباقها.",
       ],
       [
         "العينة والتفسير",
@@ -817,11 +888,11 @@ const content: Record<string, { title: string; parts: [string, string][] }> = {
       ],
       [
         "حماية الفئات الصغيرة",
-        "لا ينشر إجمالي أقل من حد النشر. إذا احتوى سؤال على فئة مأهولة أصغر من الحد، تُحجب توزيعات السؤال بالكامل. لا توجد تقاطعات بين العمر والمدينة والجنس. تعرض الاتجاهات أسابيع مكتملة فقط. يظل خطر الاستدلال عبر الزمن قائماً ويستلزم مراجعة مستقلة.",
+        "لا ينشر إجمالي أقل من حد النشر. إذا احتوى سؤال على فئة مأهولة أصغر من الحد، تُحجب توزيعات السؤال بالكامل. لا توجد تقاطعات بين العمر والمدينة والجنس. تعرض الاتجاهات العامة أسابيع مكتملة فقط. مقام نسب السؤال الأخير هو عدد إجاباته الصالحة وحده؛ ولا تدخل الاستبيانات السابقة فيه. يظل خطر الاستدلال عبر الزمن قائماً ويستلزم مراجعة مستقلة.",
       ],
       [
-        "النصوص والاختبار",
-        "النصوص تمر بمراجعة بشرية وتنقيح قبل النشر. هذه النسخة للاختبار ببيانات اصطناعية فقط، ويجب مسحها قبل أي إطلاق معتمد.",
+        "النصوص ونية المشاركة",
+        "النصوص تمر بمراجعة بشرية وتنقيح قبل النشر. إجابات السؤال الأخير تُحفظ في عدادات مجمعة منفصلة عن سجلات الاستبيان والبيانات الديموغرافية. لا تُنشأ قوائم فردية لنية المشاركة.",
       ],
     ],
   },
@@ -830,7 +901,7 @@ const content: Record<string, { title: string; parts: [string, string][] }> = {
     parts: [
       [
         "الموافقة والاختيار",
-        "كل سؤال اختياري. نطلب موافقتك عند الإرسال. تستطيع المغادرة قبل الإرسال؛ المسودة موجودة في ذاكرة الصفحة ولا تُحفظ محلياً. لا تستخدم بيانات حقيقية في هذه النسخة الخاصة.",
+        "كل سؤال اختياري. نطلب موافقتك عند الإرسال. تستطيع المغادرة قبل الإرسال؛ المسودة موجودة في ذاكرة الصفحة ولا تُحفظ محلياً. يمكنك ترك سؤال نية المشاركة دون إجابة، ولا يُعد اختيار «نعم» تسجيلاً أو تعهداً بالحضور.",
       ],
       [
         "البيانات التي نعالجها",
@@ -838,19 +909,19 @@ const content: Record<string, { title: string; parts: [string, string][] }> = {
       ],
       [
         "البيانات التقنية ومزودو الخدمة",
-        "يعالج الخادم عنوان الشبكة أثناء الاتصال. حد الإرسال يستخدم بصمة HMAC تتغير كل ساعة، منفصلة عن الإجابات وتُزال بعد انتهاء صلاحيتها عند الطلب التالي أو عملية التنظيف. Supabase يستضيف البيانات والمصادقة، وCloudflare Turnstile يتحقق من الطلبات الآلية. قد يحتفظ مزودو الاستضافة بسجلات تقنية وفق إعداداتهم؛ يجب مراجعة مواقع المعالجة والعقود والاحتفاظ قبل الإطلاق.",
+        "يعالج الخادم عنوان الشبكة أثناء الاتصال. حد الإرسال يستخدم بصمة HMAC تتغير كل ساعة، منفصلة عن الإجابات وتُزال بعد انتهاء صلاحيتها عند الطلب التالي أو عملية التنظيف. Supabase يستضيف البيانات والمصادقة، وCloudflare Turnstile يتحقق من الطلبات الآلية. قد يحتفظ مزودو الاستضافة بسجلات تقنية وفق إعداداتهم. لا نسجل أجسام الطلبات أو النصوص في سجلات التطبيق، ويجب على المشغل ضبط مدة احتفاظ المزودين.",
       ],
       [
         "الوصول والنشر",
-        "لا يمكن للزوار قراءة الإجابات الخام. الإحصاءات العامة مجمعة ومحجوبة عند صغر الفئات. المشرفون المخولون بالمصادقة الثنائية يراجعون النصوص فقط. المحللون يصلون إلى إحصاءات آمنة. لا يوفر هذا التطبيق تصدير الإجابات الفردية.",
+        "لا يمكن للزوار قراءة الإجابات الخام. الإحصاءات العامة مجمعة ومحجوبة عند صغر الفئات. المشرفون المخولون بالمصادقة الثنائية يراجعون النصوص فقط. يصل المالك والمحللون المخولون بالمصادقة الثنائية إلى مجاميع غير خاضعة لحد العرض العام، دون تقاطعات ديموغرافية أو قوائم نية فردية. لا يوفر هذا التطبيق تصدير الإجابات الفردية.",
       ],
       [
         "الاحتفاظ والحذف",
-        "المدة الافتراضية ١٨٠ يوماً ويمكن للمالك ضبطها بين ٣٠ و٧٣٠ يوماً. الحذف يُنفّذ عبر عملية إدارية ويشمل المطالب التابعة، ولا يحدث تلقائياً دون تشغيلها دورياً. سجل العمليات يحتفظ بحد أقصى مستهدف سنة عند التنظيف. النسخ الاحتياطية قد تبقى وفق سياسة المزود؛ لا ندّعي مسحها فوراً.",
+        "المدة الافتراضية ١٨٠ يوماً ويمكن للمالك ضبطها بين ٣٠ و٧٣٠ يوماً. الحذف يُنفّذ عبر عملية إدارية ويشمل المطالب التابعة، ولا يحدث تلقائياً دون تشغيلها دورياً. تُحذف أيضاً عدادات النية اليومية عند انتهاء مدة الاحتفاظ بكامل اليوم، وقد تبقى حتى يوم إضافي بسبب التجميع. سجل العمليات يحتفظ بحد أقصى مستهدف سنة عند التنظيف. النسخ الاحتياطية قد تبقى وفق سياسة المزود؛ لا ندّعي مسحها فوراً.",
       ],
       [
         "طلبات الحقوق والتواصل",
-        "قبل الإطلاق يجب نشر اسم المسؤول عن المعالجة ووسيلة تواصل موثوقة وتحديد الأساس القانوني. لا تجمع هذه النسخة وسيلة تعريف لاسترجاع إجابة بعينها؛ قد يتعذر ربط طلب حذف بشخص دون كشف بيانات إضافية. لا تستخدم المنصة حالياً لإرسال معلومات شخصية.",
+        "تتوفر قناة المبادرة الرسمية في صفحة التواصل. لا نطلب وسيلة تعريف لربط الإجابة بشخص؛ وقد يتعذر التحقق من طلب يتعلق بسجل بعينه دون كشف معلومات إضافية. لا ترسل بيانات شخصية عبر النصوص الحرة أو التعليقات العامة. لم تُقدَّم بعد بيانات منشورة مكتملة عن المسؤول القانوني عن المعالجة؛ يتعين على المشغل استكمالها.",
       ],
     ],
   },
@@ -859,15 +930,15 @@ const content: Record<string, { title: string; parts: [string, string][] }> = {
     parts: [
       [
         "قناة التواصل الرسمية",
-        "لم تُضبط بعد جهة تشغيل أو قناة تواصل موثقة لهذه النسخة الخاصة. يجب على مالك المشروع إضافة وسيلة معتمدة قبل الإطلاق العام. لن نعرض عنواناً غير حقيقي أو نجمع رسائل لا يمكن الرد عليها.",
+        "قناة المبادرة الرسمية هي LibyaYouthAwareness على تيليجرام. تُستخدم لنشر المستجدات؛ لا ترسل فيها بيانات مشاركين أو معلومات شخصية. البريد الإلكتروني يظهر عند ضبط عنوان موثق من المشغل.",
       ],
       [
         "ملاحظة على الاستبيان",
-        "يمكن كتابة ملاحظة غير شخصية في السؤال الأخير. تخضع للمراجعة ولا تُنشر تلقائياً. هذا المسار لا يوفر مراسلة أو رداً شخصياً.",
+        "يمكن كتابة ملاحظة غير شخصية في السؤال الخامس والثلاثين. تخضع للمراجعة ولا تُنشر تلقائياً. هذا المسار لا يوفر مراسلة أو رداً شخصياً.",
       ],
       [
-        "الإبلاغ خلال المراجعة الخاصة",
-        "أرسل ملاحظات الاختبار إلى مالك المشروع عبر قناة التنسيق المستخدمة لدعوتك. اذكر الصفحة والخطوات دون إرسال كلمات مرور أو بيانات مشاركين.",
+        "الإبلاغ عن مشكلة",
+        "للإبلاغ عن مشكلة، استخدم وسيلة التواصل المعتمدة واذكر الصفحة والخطوات دون إرسال كلمات مرور أو إجابات أفراد أو بيانات حساسة.",
       ],
     ],
   },
@@ -914,7 +985,7 @@ function Info({ path, contactEmail }: { path: string; contactEmail?: string }) {
     </section>
   );
 }
-function Admin({ path }: { path: string }) {
+function Admin({ path, ready }: { path: string; ready: boolean }) {
   const [session, setSession] = useState<any>();
   const [role, setRole] = useState("");
   const [email, setEmail] = useState("");
@@ -936,11 +1007,15 @@ function Admin({ path }: { path: string }) {
     const { data } = await auth!.auth.getSession();
     setSession(data.session);
     if (!data.session) return;
-    try {
+    const assurance = await auth!.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (assurance.error)
+      throw Error("تعذر التحقق من مستوى المصادقة. أعد تسجيل الدخول.");
+    if (assurance.data.currentLevel === "aal2") {
       const r = await adminCall("session");
       setRole(r.role);
-    } catch {
+    } else {
       const f = await auth!.auth.mfa.listFactors();
+      if (f.error) throw Error("تعذر تحميل عوامل المصادقة. أعد المحاولة.");
       const verified = f.data?.totp.find((f) => f.status === "verified");
       if (verified) setFactor(verified.id);
       else {
@@ -950,7 +1025,7 @@ function Admin({ path }: { path: string }) {
         if (enrolled) await auth!.auth.mfa.unenroll({ factorId: enrolled.id });
         const { data, error } = await auth!.auth.mfa.enroll({
           factorType: "totp",
-          friendlyName: "Private admin",
+          friendlyName: "INTIFADIA admin",
         });
         if (error) throw error;
         setFactor(data.id);
@@ -960,8 +1035,8 @@ function Admin({ path }: { path: string }) {
     }
   }
   useEffect(() => {
-    if (auth) prepare().catch((e) => setError(e.message));
-  }, []);
+    if (ready && auth) prepare().catch((e) => setError(e.message));
+  }, [ready]);
   useEffect(() => {
     if (!role) return;
     const action =
@@ -994,6 +1069,22 @@ function Admin({ path }: { path: string }) {
           حساب مخوّل + مصادقة ثنائية. لا يمكن إنشاء صلاحية إدارية من هذه الصفحة.
         </p>
       </Title>
+      {!role && (
+        <details className="owner-help">
+          <summary>كيف يفعّل المالك حسابه؟</summary>
+          <p>
+            ينشئ صاحب مشروع Supabase حسابه من Authentication → Users، ثم يمنح
+            UUID الخاص به دور owner عبر اتصال قاعدة بيانات موثوق. بعد الدخول يجب
+            ربط تطبيق TOTP وإتمام التحقق. لا يمكن إنشاء صلاحية إدارية من الموقع
+            ولا إرسال كلمات المرور أو المفاتيح في المحادثات.
+          </p>
+          <p>
+            إذا نجح التحقق الثنائي وبقي الوصول مرفوضاً، تحقق من سجل admin_roles؛
+            إعادة إنشاء عامل MFA لا تمنح صلاحية. دليل الخطوات التفصيلي موجود في
+            docs/OWNER_ACCESS.md داخل المستودع.
+          </p>
+        </details>
+      )}
       {error && (
         <p className="error" role="alert">
           {error}
@@ -1212,9 +1303,9 @@ function Admin({ path }: { path: string }) {
               <div className="stats">
                 {data?.statistics && (
                   <article>
-                    <span>المشاركات القابلة للنشر</span>
+                    <span>الاستبيانات المستلمة</span>
                     <strong>{data.statistics.total ?? "دون حد النشر"}</strong>
-                    <small>الحد الأدنى: {data.statistics.threshold}</small>
+                    <small>حد النشر العام فقط: {data.statistics.threshold}</small>
                   </article>
                 )}
                 {data?.moderation && (
@@ -1336,6 +1427,7 @@ function Settings({
   }
   return (
     <div className="chart">
+      <EventSettings call={call} />
       <form
         onSubmit={(e) => {
           e.preventDefault();

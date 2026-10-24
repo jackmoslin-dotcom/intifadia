@@ -1,19 +1,28 @@
-import { writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { questions, sections } from "../src/survey";
 const sql =
   "-- Generated from src/survey.ts. Regenerate after editing question definitions.\n" +
   questions
+    .slice(0, 35)
     .map(
       (q) =>
         `insert into public.question_definitions(id,definition) values('${q.id}','${JSON.stringify(q).replaceAll("'", "''")}');`,
     )
     .join("\n") +
   "\n";
-writeFileSync("supabase/migrations/002_questions.sql", sql);
+if (
+  readFileSync("supabase/migrations/002_questions.sql", "utf8").replaceAll(
+    "\r\n",
+    "\n",
+  ) !== sql
+)
+  throw new Error(
+    "Existing 35 question definitions changed: use a new migration instead of rewriting history",
+  );
 mkdirSync("docs", { recursive: true });
 writeFileSync(
   "docs/SURVEY.md",
-  "# دليل الأسئلة الـ٣٥\n\nالنصوص مصممة وفق تفويض صاحب المشروع وتحتاج مراجعة قبل الإطلاق. لا تغيّر معرفات الأسئلة أو رموز الخيارات بعد جمع البيانات دون ترحيل إصدار الاستبيان.\n\n" +
+  "# دليل الأسئلة الـ٣٦\n\nالنصوص مصممة وفق تفويض صاحب المشروع وتحتاج مراجعة قبل الإطلاق. لا تغيّر معرفات الأسئلة أو رموز الخيارات بعد جمع البيانات دون ترحيل إصدار الاستبيان.\n\n" +
     questions
       .map(
         (q, i) =>

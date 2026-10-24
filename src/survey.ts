@@ -469,6 +469,13 @@ export const questions: Question[] = [
     [],
     { type: "text", maxLength: 1000, aggregate: false },
   ),
+  q(
+    "demonstration_intent_2026_10_28",
+    5,
+    "هل تنوي المشاركة في المظاهرة السلمية المقترحة يوم 28 أكتوبر 2026؟",
+    ["نعم", "لا"],
+    { storage: "participation_counts (aggregate only; no response link)" },
+  ),
 ];
 export const visible = (q: Question, answers: Record<string, unknown>) =>
   !q.condition ||

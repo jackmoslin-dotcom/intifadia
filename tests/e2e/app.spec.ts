@@ -1,5 +1,66 @@
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+test("organizer announcement and official Telegram links", async ({ page }) => {
+  await page.goto("/");
+  await expect(
+    page.getByRole("heading", { name: "مظاهرة سلمية — 28 أكتوبر 2026" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("موعد معلن من المنظم", { exact: true }),
+  ).toBeVisible();
+  const links = page.getByRole("link", { name: "قناتنا الرسمية على تيليجرام" });
+  await expect(links).toHaveCount(3);
+  for (const link of await links.all())
+    await expect(link).toHaveAttribute(
+      "href",
+      "https://t.me/LibyaYouthAwareness",
+    );
+});
+test("Q36 is optional and last, with yes/no and aggregate-only notice", async ({
+  page,
+}) => {
+  await page.goto("/survey");
+  for (let i = 0; i < 5; i++)
+    await page.getByRole("button", { name: "التالي" }).click();
+  const last = page.locator("fieldset").last();
+  await expect(last).toContainText(
+    "هل تنوي المشاركة في المظاهرة السلمية المقترحة يوم 28 أكتوبر 2026؟",
+  );
+  await expect(last).toContainText("عدادات مجمّعة منفصلة");
+  await expect(last.getByRole("radio")).toHaveCount(2);
+  await last.getByLabel("نعم", { exact: true }).check();
+  await page.getByRole("button", { name: "التالي" }).click();
+  await expect(
+    page.getByRole("heading", { name: "مراجعة وإرسال" }),
+  ).toBeVisible();
+});
+test("public intention statistics show question denominator and interpretation", async ({
+  page,
+}) => {
+  await page.route("**/api/results", (route) =>
+    route.fulfill({
+      json: {
+        total: 20,
+        threshold: 5,
+        distributions: {},
+        weekly: [],
+        demonstration: {
+          answered: 10,
+          yes: 5,
+          no: 5,
+          yesPercent: 50,
+          noPercent: 50,
+        },
+      },
+    }),
+  );
+  await page.goto("/results");
+  const card = page.locator(".participation-stats");
+  await expect(card).toContainText("عدد الإجابات الصالحة لهذا السؤال:");
+  await expect(card).toContainText("50٪");
+  await expect(card).toContainText("ليست تسجيلاً رسمياً");
+  await expect(card).toContainText("إجابات «نعم/لا» الصالحة فقط");
+});
 test("Arabic RTL navigation and all public pages", async ({ page }) => {
   for (const [path, title] of [
     ["/", "صوتك يصنع"],

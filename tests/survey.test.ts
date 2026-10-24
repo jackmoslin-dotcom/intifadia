@@ -9,18 +9,19 @@ import {
   cleanAnswers,
 } from "../src/survey";
 describe("survey contract", () => {
-  it("has exactly 35 unique optional questions in 6/6/6/6/6/5 sections", () => {
-    expect(questions).toHaveLength(35);
-    expect(new Set(questions.map((q) => q.id)).size).toBe(35);
+  it("has exactly 36 unique optional questions in 6/6/6/6/6/6 sections", () => {
+    expect(questions).toHaveLength(36);
+    expect(new Set(questions.map((q) => q.id)).size).toBe(36);
     expect(
       sections.map((_, i) => questions.filter((q) => q.section === i).length),
-    ).toEqual([6, 6, 6, 6, 6, 5]);
+    ).toEqual([6, 6, 6, 6, 6, 6]);
     expect(
       questions.every(
         (q) =>
           q.optional &&
           q.label.length >= 8 &&
-          q.storage === `responses.answers.${q.id}`,
+          (q.storage === `responses.answers.${q.id}` ||
+            q.id === "demonstration_intent_2026_10_28"),
       ),
     ).toBe(true);
   });

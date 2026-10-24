@@ -73,3 +73,6 @@ it("never exposes service keys via public config", async () => {
   expect(c).not.toHaveProperty("SUPABASE_SERVICE_ROLE_KEY");
   expect(c).not.toHaveProperty("RATE_LIMIT_SECRET");
 });
+it("event API fails explicitly when database configuration is unavailable", async () => {
+  expect((await fetch(base + "/api/event")).status).toBe(503);
+});

@@ -18,22 +18,17 @@ export function createApp(env: NodeJS.ProcessEnv = process.env) {
           scriptSrc: [
             "'self'",
             "https://challenges.cloudflare.com",
-            ...(env.NODE_ENV !== "production"
-              ? ["'unsafe-inline'"]
-              : []),
+            ...(env.NODE_ENV !== "production" ? ["'unsafe-inline'"] : []),
           ],
           frameSrc: ["https://challenges.cloudflare.com"],
           connectSrc: [
             "'self'",
-            ...(env.SUPABASE_URL
-              ? [new URL(env.SUPABASE_URL).origin]
-              : []),
+            ...(env.SUPABASE_URL ? [new URL(env.SUPABASE_URL).origin] : []),
             "https://challenges.cloudflare.com",
           ],
           imgSrc: ["'self'", "data:"],
           styleSrc: ["'self'", "'unsafe-inline'"],
-          upgradeInsecureRequests:
-            env.NODE_ENV === "production" ? [] : null,
+          upgradeInsecureRequests: env.NODE_ENV === "production" ? [] : null,
         },
       },
     }),
@@ -53,29 +48,21 @@ export function createApp(env: NodeJS.ProcessEnv = process.env) {
   );
 
   const service = configured
-    ? createClient(
-        env.SUPABASE_URL!,
-        env.SUPABASE_SERVICE_ROLE_KEY!,
-        {
-          auth: {
-            persistSession: false,
-            autoRefreshToken: false,
-          },
+    ? createClient(env.SUPABASE_URL!, env.SUPABASE_SERVICE_ROLE_KEY!, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
         },
-      )
+      })
     : null;
 
   const publicDb = configured
-    ? createClient(
-        env.SUPABASE_URL!,
-        env.SUPABASE_ANON_KEY!,
-        {
-          auth: {
-            persistSession: false,
-            autoRefreshToken: false,
-          },
+    ? createClient(env.SUPABASE_URL!, env.SUPABASE_ANON_KEY!, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
         },
-      )
+      })
     : null;
 
   // Log only diagnostic database error fields.
@@ -91,9 +78,7 @@ export function createApp(env: NodeJS.ProcessEnv = process.env) {
   ) {
     console.error(`[Intifadia] ${operation} failed`, {
       code: error.code || "unknown",
-      message: error.message || "Unknown database error",
-      details: error.details || null,
-      hint: error.hint || null,
+      // Database messages/details can contain submitted row values.
     });
   }
 
@@ -111,15 +96,12 @@ export function createApp(env: NodeJS.ProcessEnv = process.env) {
           env.TURNSTILE_SITE_KEY &&
           env.RATE_LIMIT_SECRET
         ),
-      staging: true,
+      staging: false,
     });
   });
 
   app.use("/api", (req, res, next) => {
-    if (
-      req.method !== "GET" &&
-      req.get("origin") !== env.APP_ORIGIN
-    ) {
+    if (req.method !== "GET" && req.get("origin") !== env.APP_ORIGIN) {
       res.status(403).json({
         error: "مصدر الطلب غير مسموح",
       });
@@ -129,20 +111,30 @@ export function createApp(env: NodeJS.ProcessEnv = process.env) {
     next();
   });
 
+  app.get("/api/event", async (_req, res) => {
+    if (!publicDb) {
+      res.status(503).json({ error: "تعذر تحديث الإعلان حالياً" });
+      return;
+    }
+    const { data, error } = await publicDb.rpc("public_event");
+    if (error || !data) {
+      res.status(503).json({ error: "تعذر تحديث الإعلان حالياً" });
+      return;
+    }
+    res.json(data);
+  });
+
   // Public aggregated statistics
   app.get("/api/results", async (_req, res) => {
     if (!publicDb) {
       res.status(503).json({
-        error:
-          "قاعدة البيانات غير متصلة بعد. لا توجد إحصاءات منشورة.",
+        error: "قاعدة البيانات غير متصلة بعد. لا توجد إحصاءات منشورة.",
       });
       return;
     }
 
     try {
-      const { data, error } = await publicDb.rpc(
-        "public_statistics",
-      );
+      const { data, error } = await publicDb.rpc("public_statistics");
 
       if (error) {
         logDatabaseError("public_statistics", error);
@@ -154,9 +146,7 @@ export function createApp(env: NodeJS.ProcessEnv = process.env) {
       }
 
       if (data == null) {
-        console.error(
-          "[Intifadia] public_statistics returned null",
-        );
+        console.error("[Intifadia] public_statistics returned null");
 
         res.status(503).json({
           error: "النتائج غير متاحة حاليًا",
@@ -187,9 +177,7 @@ export function createApp(env: NodeJS.ProcessEnv = process.env) {
     }
 
     try {
-      const { data, error } = await publicDb.rpc(
-        "public_demands",
-      );
+      const { data, error } = await publicDb.rpc("public_demands");
 
       if (error) {
         logDatabaseError("public_demands", error);
@@ -219,8 +207,7 @@ export function createApp(env: NodeJS.ProcessEnv = process.env) {
 
     if (!parsed.success) {
       res.status(400).json({
-        error:
-          "يرجى مراجعة الإجابات والموافقة على سياسة المشاركة.",
+        error: "يرجى مراجعة الإجابات والموافقة على سياسة المشاركة.",
       });
       return;
     }
@@ -232,20 +219,18 @@ export function createApp(env: NodeJS.ProcessEnv = process.env) {
       !env.APP_ORIGIN
     ) {
       res.status(503).json({
-        error:
-          "الإرسال غير متاح حتى تكتمل تهيئة النسخة الخاصة.",
+        error: "الإرسال غير متاح مؤقتاً. يرجى المحاولة لاحقاً.",
       });
       return;
     }
 
     try {
-      const { data: allowed, error: rateError } =
-        await service.rpc("consume_rate", {
-          p_bucket: rateBucket(
-            req.ip || "unknown",
-            env.RATE_LIMIT_SECRET,
-          ),
-        });
+      const { data: allowed, error: rateError } = await service.rpc(
+        "consume_rate",
+        {
+          p_bucket: rateBucket(req.ip || "unknown", env.RATE_LIMIT_SECRET),
+        },
+      );
 
       if (rateError) {
         logDatabaseError("consume_rate", rateError);
@@ -258,8 +243,7 @@ export function createApp(env: NodeJS.ProcessEnv = process.env) {
 
       if (!allowed) {
         res.status(429).json({
-          error:
-            "تم تجاوز عدد المحاولات المسموح. حاول لاحقًا.",
+          error: "تم تجاوز عدد المحاولات المسموح. حاول لاحقًا.",
         });
         return;
       }
@@ -277,20 +261,16 @@ export function createApp(env: NodeJS.ProcessEnv = process.env) {
         return;
       }
 
-      const { data, error } = await service.rpc(
-        "submit_response",
-        {
-          p_id: parsed.data.requestId,
-          p_answers: parsed.data.answers,
-        },
-      );
+      const { data, error } = await service.rpc("submit_response", {
+        p_id: parsed.data.requestId,
+        p_answers: parsed.data.answers,
+      });
 
       if (error) {
         logDatabaseError("submit_response", error);
 
         res.status(400).json({
-          error:
-            "تعذر حفظ الإجابات. أعد المحاولة بنفس الطلب.",
+          error: "تعذر حفظ الإجابات. أعد المحاولة بنفس الطلب.",
         });
         return;
       }
@@ -306,8 +286,7 @@ export function createApp(env: NodeJS.ProcessEnv = process.env) {
       );
 
       res.status(503).json({
-        error:
-          "حدث خطأ أثناء الإرسال. حاول مجددًا بنفس الطلب.",
+        error: "حدث خطأ أثناء الإرسال. حاول مجددًا بنفس الطلب.",
       });
     }
   });
@@ -321,9 +300,7 @@ export function createApp(env: NodeJS.ProcessEnv = process.env) {
       return;
     }
 
-    const token = req
-      .get("authorization")
-      ?.match(/^Bearer (.+)$/)?.[1];
+    const token = req.get("authorization")?.match(/^Bearer (.+)$/)?.[1];
 
     if (!token) {
       res.status(401).json({
@@ -332,23 +309,18 @@ export function createApp(env: NodeJS.ProcessEnv = process.env) {
       return;
     }
 
-    const db = createClient(
-      env.SUPABASE_URL!,
-      env.SUPABASE_ANON_KEY!,
-      {
-        global: {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-        auth: {
-          persistSession: false,
+    const db = createClient(env.SUPABASE_URL!, env.SUPABASE_ANON_KEY!, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`,
         },
       },
-    );
+      auth: {
+        persistSession: false,
+      },
+    });
 
-    const { data: user, error: authError } =
-      await db.auth.getUser(token);
+    const { data: user, error: authError } = await db.auth.getUser(token);
 
     if (authError || !user.user) {
       res.status(401).json({
@@ -357,13 +329,10 @@ export function createApp(env: NodeJS.ProcessEnv = process.env) {
       return;
     }
 
-    const { data, error } = await db.rpc(
-      "admin_action",
-      {
-        p_action: req.params.action,
-        p_data: req.body ?? {},
-      },
-    );
+    const { data, error } = await db.rpc("admin_action", {
+      p_action: req.params.action,
+      p_data: req.body ?? {},
+    });
 
     if (error) {
       logDatabaseError("admin_action", error);
@@ -404,13 +373,9 @@ export function createApp(env: NodeJS.ProcessEnv = process.env) {
         err?.type || err?.name || "Unknown",
       );
 
-      res
-        .status(
-          err?.type === "entity.too.large" ? 413 : 400,
-        )
-        .json({
-          error: "تعذر معالجة الطلب",
-        });
+      res.status(err?.type === "entity.too.large" ? 413 : 400).json({
+        error: "تعذر معالجة الطلب",
+      });
     },
   );
 
